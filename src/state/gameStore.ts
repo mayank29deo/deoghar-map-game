@@ -19,6 +19,8 @@ export interface ShiftHud {
   parcel: string;
   offers: Offer[];
   lastDelivery: { amount: number; at: number } | null;
+  lastDeliveryLL: { lat: number; lon: number } | null;
+  bump: number | null;
   playerX: number;
   playerZ: number;
 }
@@ -63,7 +65,7 @@ export interface GameStore extends Profile {
 const emptyShift = (): ShiftHud => ({
   timeLeft: 300, earnings: 0, deliveries: 0, chain: 0, combo: 1, comboLeft: 0, speed: 0,
   missionPhase: "none", targetName: "", targetDist: 0, bearing: 0, heading: 0, parcel: "",
-  offers: [], lastDelivery: null, playerX: 0, playerZ: 0,
+  offers: [], lastDelivery: null, lastDeliveryLL: null, bump: null, playerX: 0, playerZ: 0,
 });
 
 export const useGameStore = create<GameStore>()((set, get) => ({

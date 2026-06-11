@@ -4,9 +4,29 @@ import { useGameStore } from "../../state/gameStore";
 import { audio } from "../../game/fx/audio";
 import ComboRing from "./ComboRing";
 import DeliveryCard from "./DeliveryCard";
+import DeliveryPeek from "./DeliveryPeek";
 import Minimap from "./Minimap";
 import OfferToasts from "./OfferToast";
 import TouchControls from "./TouchControls";
+
+function BumpToast() {
+  const bump = useGameStore((s) => s.shift.bump);
+  const [show, setShow] = useState(0);
+  useEffect(() => {
+    if (!bump) return;
+    setShow(bump);
+    const id = setTimeout(() => setShow(0), 1600);
+    return () => clearTimeout(id);
+  }, [bump]);
+  if (!show) return null;
+  return (
+    <div key={show} className="anim-in pointer-events-none fixed left-1/2 top-[30%] z-40 -translate-x-1/2">
+      <div className="paper-card px-4 py-2">
+        <span className="font-display text-xl text-[var(--sindoor)]">🐄 BHAIYA DEKH KE!</span>
+      </div>
+    </div>
+  );
+}
 
 function MuteButton() {
   const [muted, setMuted] = useState(audio.muted);
@@ -81,7 +101,11 @@ export default function Hud() {
         <ComboRing />
       </div>
       <TouchControls />
-      <div className="pointer-events-auto absolute bottom-4 left-4 w-72 max-w-[42vw]"><OfferToasts /></div>
+      <div className="pointer-events-auto absolute bottom-4 left-4 flex w-72 max-w-[42vw] flex-col gap-2">
+        <DeliveryPeek />
+        <OfferToasts />
+      </div>
+      <BumpToast />
       <div className="absolute bottom-4 left-1/2 w-[26rem] max-w-[60vw] -translate-x-1/2"><DeliveryCard /></div>
       <div className="absolute bottom-4 right-4"><Minimap /></div>
       <DeliveryFlash />

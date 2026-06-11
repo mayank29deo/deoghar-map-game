@@ -1,5 +1,6 @@
 import { BigButton, Bunting, PaperCard, rupees } from "../bits";
 import { useGameStore } from "../../state/gameStore";
+import { SATELLITE_ENABLED } from "../../game/world/satellite";
 
 export default function Home() {
   const handle = useGameStore((s) => s.handle);
@@ -46,6 +47,7 @@ export default function Home() {
 
       <div className="font-ui absolute bottom-3 text-center text-[10px] uppercase tracking-widest text-[var(--paper)] opacity-50">
         real streets of Deoghar 814112 · WASD drive · Space handbrake
+        {SATELLITE_ENABLED && <span className="block normal-case tracking-normal">imagery © MapTiler © OpenStreetMap contributors</span>}
       </div>
     </div>
   );

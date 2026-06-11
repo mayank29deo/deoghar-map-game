@@ -26,8 +26,13 @@ import { useGameStore, type Screen } from "../state/gameStore";
 import { leaderboard } from "../services/leaderboard";
 import { audio } from "./fx/audio";
 import { touch } from "./engine/touch";
+import { buildSatellite } from "./world/satellite";
+import { TrafficSystem } from "./sim/traffic";
+import { toLatLon } from "./world/geo";
 
 const ENGINE_PITCH: Record<string, number> = { scooty: 64, bike: 78, auto: 48, sedan: 56, suv: 44 };
+/** quality tiers: [shadowMapSize, pixelRatioCap, shadowsOn] */
+const TIERS: [number, number, boolean][] = [[2048, 2, true], [1024, 1.5, true], [0, 1, false]];
 
 const SHIFT_SECONDS = 300;
 const COMBO_WINDOW = 40;
@@ -73,6 +78,12 @@ export class GameApp {
   private honkPop = 0;
   private homeAngle = 0;
   private unsub: () => void;
+  private traffic!: TrafficSystem;
+  private sunAcc = 1; // force first-frame sky update
+  private tier = 0;
+  private frameAcc = 0;
+  private frameCount = 0;
+  private lastFrameAt = 0;
 
   private onResize = () => {
     const w = this.host.clientWidth, h = this.host.clientHeight;
@@ -138,6 +149,10 @@ export class GameApp {
     this.scene.add(buildLampposts(MAP, rng, grid));
     this.scene.add(buildTemple(MAP));
     this.scene.add(buildWater(MAP));
+    const sat = buildSatellite();
+    if (sat) this.scene.add(sat);
+    this.traffic = new TrafficSystem(MAP, mulberry32(990011));
+    this.scene.add(this.traffic.group);
     this.roadGrid = new RoadGrid(MAP);
     this.lotIndex = new LotIndex(this.lots);
   }
@@ -167,6 +182,11 @@ export class GameApp {
   // ---------- screen transitions ----------
   private onScreenChange(s: Screen) {
     this.screen = s;
+    // tight shadow box while driving (sharper + far cheaper), wide for cinematic orbits
+    const ext = s === "driving" ? 260 : 700;
+    const c = this.sky.sun.shadow.camera;
+    c.left = -ext; c.right = ext; c.top = ext; c.bottom = -ext;
+    c.updateProjectionMatrix();
     if (s === "driving") this.startShift();
     if (s === "home" || s === "garage") {
       this.sky.timeOfDay = 0.15;
@@ -220,7 +240,8 @@ export class GameApp {
     this.marker.hide();
     this.slowmo = 0.45;
     audio.deliver();
-    useGameStore.getState().hudSync({ lastDelivery: { amount, at: Date.now() } });
+    const ll = toLatLon(m.offer.drop.x, m.offer.drop.z);
+    useGameStore.getState().hudSync({ lastDelivery: { amount, at: Date.now() }, lastDeliveryLL: ll });
   }
 
   private endShift() {
@@ -291,6 +312,13 @@ export class GameApp {
     let next = stepVehicle(this.vehState, drive, spec, surface, dt);
     const res = resolveCircleVsLots(next.x, next.z, spec.radius, this.lots, this.lotIndex);
     if (res.hit) next = { ...next, x: res.x, z: res.z, speed: next.speed * 0.55 };
+
+    // street life — bump a cow or auto and you lose most of your speed
+    if (this.traffic.update(dt, next.x, next.z, spec.radius)) {
+      next = { ...next, speed: next.speed * 0.35 };
+      audio.horn(spec.key);
+      useGameStore.getState().hudSync({ bump: Date.now() });
+    }
     this.vehState = next;
 
     // mission progression
@@ -338,6 +366,21 @@ export class GameApp {
 
   private render() {
     const dt = 1 / 60;
+    // auto quality scaler — sustained slow frames drop a tier, sustained fast ones climb back
+    const now = performance.now();
+    if (this.lastFrameAt > 0) {
+      this.frameAcc += now - this.lastFrameAt;
+      this.frameCount++;
+      if (this.frameCount >= 120) {
+        const avg = this.frameAcc / this.frameCount;
+        if (avg > 26 && this.tier < 2) this.applyTier(this.tier + 1);
+        else if (avg < 14 && this.tier > 0) this.applyTier(this.tier - 1);
+        this.frameAcc = 0;
+        this.frameCount = 0;
+      }
+    }
+    this.lastFrameAt = now;
+    if (this.screen !== "driving") this.traffic.update(dt, 1e9, 1e9, 0); // ambient life behind menus
     if (this.screen === "driving") {
       const spec = VEHICLES[this.specIdx];
       const s = this.vehState;
@@ -369,9 +412,26 @@ export class GameApp {
       this.focus.set(20, 0, -619);
     }
     this.marker.pulse(dt);
-    this.sky.update(this.focus);
+    this.sunAcc += dt;
+    if (this.sunAcc >= 0.2) { this.sky.update(this.focus); this.sunAcc = 0; } // 5 Hz sun/shadow reposition
     this.renderer.render(this.scene, this.camera);
     this.stats?.frame();
+  }
+
+  private applyTier(t: number) {
+    this.tier = t;
+    const [shadowSize, prCap, shadowsOn] = TIERS[t];
+    this.renderer.shadowMap.enabled = shadowsOn;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, prCap));
+    this.renderer.setSize(this.host.clientWidth, this.host.clientHeight);
+    if (shadowsOn) {
+      this.sky.sun.castShadow = true;
+      this.sky.sun.shadow.mapSize.set(shadowSize, shadowSize);
+      this.sky.sun.shadow.map?.dispose();
+      (this.sky.sun.shadow as unknown as { map: null }).map = null; // force realloc at new size
+    } else {
+      this.sky.sun.castShadow = false;
+    }
   }
 
   dispose() {
