@@ -1,0 +1,12 @@
+export const ORIGIN = { lat: 24.487, lon: 86.7 };
+const M_PER_DEG_LAT = 110574;
+const M_PER_DEG_LON = 111320 * Math.cos((ORIGIN.lat * Math.PI) / 180);
+
+/** lat/lon → local meters. x = east, z = south (−north). */
+export function project(lat, lon) {
+  return { x: (lon - ORIGIN.lon) * M_PER_DEG_LON, z: -(lat - ORIGIN.lat) * M_PER_DEG_LAT };
+}
+
+export function unproject(x, z) {
+  return { lat: ORIGIN.lat - z / M_PER_DEG_LAT, lon: ORIGIN.lon + x / M_PER_DEG_LON };
+}
