@@ -3,7 +3,6 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { createRenderer } from "./engine/renderer";
 import { Loop } from "./engine/loop";
 import { StatsOverlay } from "./engine/stats";
-import { PALETTE } from "./world/palette";
 import { SkyRig } from "./world/sky";
 import { buildRoads } from "./world/roadMesh";
 import { MAP } from "./world/mapData";
@@ -11,6 +10,7 @@ import { mulberry32 } from "./engine/rng";
 import { CellGrid } from "./world/geom2d";
 import { generateLots } from "./world/lots";
 import { buildCity } from "./world/buildings";
+import { buildGround, buildLampposts, buildTemple, buildTrees, buildWater, reserveLandmarkZones } from "./world/props";
 
 export class GameApp {
   private renderer: THREE.WebGLRenderer;
@@ -58,16 +58,16 @@ export class GameApp {
 
   private buildWorld() {
     this.sky = new SkyRig(this.scene);
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(8000, 8000), new THREE.MeshLambertMaterial({ color: PALETTE.ground }));
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    this.scene.add(ground);
+    this.scene.add(buildGround());
     this.scene.add(buildRoads(MAP));
-    const rng = mulberry32(814112);
-    const grid = new CellGrid(4);
-    this.scene.add(buildCity(generateLots(MAP, rng, grid), MAP));
-    this.rng = rng;
-    this.grid = grid; // props (Task 9) reuse both so trees never spawn inside buildings
+    this.rng = mulberry32(814112);
+    this.grid = new CellGrid(4); // reserve landmark zones, then lots claim cells, then trees/lampposts fill gaps
+    reserveLandmarkZones(MAP, this.grid);
+    this.scene.add(buildCity(generateLots(MAP, this.rng, this.grid), MAP));
+    this.scene.add(buildTrees(MAP, this.rng, this.grid));
+    this.scene.add(buildLampposts(MAP, this.rng, this.grid));
+    this.scene.add(buildTemple(MAP));
+    this.scene.add(buildWater(MAP));
   }
 
   dispose() {
