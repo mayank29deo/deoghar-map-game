@@ -7,6 +7,10 @@ import { PALETTE } from "./world/palette";
 import { SkyRig } from "./world/sky";
 import { buildRoads } from "./world/roadMesh";
 import { MAP } from "./world/mapData";
+import { mulberry32 } from "./engine/rng";
+import { CellGrid } from "./world/geom2d";
+import { generateLots } from "./world/lots";
+import { buildCity } from "./world/buildings";
 
 export class GameApp {
   private renderer: THREE.WebGLRenderer;
@@ -16,6 +20,8 @@ export class GameApp {
   private loop: Loop;
   private stats?: StatsOverlay;
   private sky!: SkyRig;
+  private rng!: ReturnType<typeof mulberry32>;
+  private grid!: CellGrid;
   private onResize = () => {
     const w = this.host.clientWidth, h = this.host.clientHeight;
     this.camera.aspect = w / h;
@@ -57,6 +63,11 @@ export class GameApp {
     ground.receiveShadow = true;
     this.scene.add(ground);
     this.scene.add(buildRoads(MAP));
+    const rng = mulberry32(814112);
+    const grid = new CellGrid(4);
+    this.scene.add(buildCity(generateLots(MAP, rng, grid), MAP));
+    this.rng = rng;
+    this.grid = grid; // props (Task 9) reuse both so trees never spawn inside buildings
   }
 
   dispose() {
