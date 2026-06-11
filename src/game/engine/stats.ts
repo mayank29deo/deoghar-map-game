@@ -8,7 +8,7 @@ export class StatsOverlay {
   constructor(host: HTMLElement, private renderer: THREE.WebGLRenderer) {
     this.el = document.createElement("div");
     this.el.style.cssText =
-      "position:absolute;right:8px;top:8px;z-index:50;background:rgba(0,0,0,.5);color:#7CFC9A;font:11px monospace;padding:4px 8px;border-radius:4px;pointer-events:none;white-space:pre";
+      "position:absolute;left:8px;top:64px;z-index:50;background:rgba(0,0,0,.5);color:#7CFC9A;font:11px monospace;padding:4px 8px;border-radius:4px;pointer-events:none;white-space:pre";
     host.appendChild(this.el);
   }
   frame() {
