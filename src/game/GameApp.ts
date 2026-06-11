@@ -4,6 +4,7 @@ import { createRenderer } from "./engine/renderer";
 import { Loop } from "./engine/loop";
 import { StatsOverlay } from "./engine/stats";
 import { PALETTE } from "./world/palette";
+import { SkyRig } from "./world/sky";
 
 export class GameApp {
   private renderer: THREE.WebGLRenderer;
@@ -12,6 +13,7 @@ export class GameApp {
   private controls: OrbitControls;
   private loop: Loop;
   private stats?: StatsOverlay;
+  private sky!: SkyRig;
   private onResize = () => {
     const w = this.host.clientWidth, h = this.host.clientHeight;
     this.camera.aspect = w / h;
@@ -36,24 +38,25 @@ export class GameApp {
       () => {},
       () => {
         this.controls.update();
+        this.sky.update(this.controls.target);
         this.renderer.render(this.scene, this.camera);
         this.stats?.frame();
       },
     );
     window.addEventListener("resize", this.onResize);
     this.loop.start();
+    if (import.meta.env.DEV) (window as unknown as { __app: GameApp }).__app = this;
   }
 
   private buildWorld() {
-    this.scene.background = new THREE.Color(PALETTE.sky.horizon);
-    const sun = new THREE.DirectionalLight(PALETTE.sun.color, 2.0);
-    sun.position.set(-400, 300, 200);
-    this.scene.add(sun, new THREE.AmbientLight(0xffe0c0, 0.6));
+    this.sky = new SkyRig(this.scene);
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(8000, 8000), new THREE.MeshLambertMaterial({ color: PALETTE.ground }));
     ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
     this.scene.add(ground);
     const box = new THREE.Mesh(new THREE.BoxGeometry(40, 40, 40), new THREE.MeshLambertMaterial({ color: 0xe76f51 }));
     box.position.set(20, 20, -619);
+    box.castShadow = true;
     this.scene.add(box);
   }
 
