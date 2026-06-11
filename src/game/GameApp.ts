@@ -5,6 +5,8 @@ import { Loop } from "./engine/loop";
 import { StatsOverlay } from "./engine/stats";
 import { PALETTE } from "./world/palette";
 import { SkyRig } from "./world/sky";
+import { buildRoads } from "./world/roadMesh";
+import { MAP } from "./world/mapData";
 
 export class GameApp {
   private renderer: THREE.WebGLRenderer;
@@ -54,10 +56,7 @@ export class GameApp {
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     this.scene.add(ground);
-    const box = new THREE.Mesh(new THREE.BoxGeometry(40, 40, 40), new THREE.MeshLambertMaterial({ color: 0xe76f51 }));
-    box.position.set(20, 20, -619);
-    box.castShadow = true;
-    this.scene.add(box);
+    this.scene.add(buildRoads(MAP));
   }
 
   dispose() {
