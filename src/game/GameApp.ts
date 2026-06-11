@@ -368,8 +368,10 @@ export class GameApp {
     const dt = 1 / 60;
     // auto quality scaler — sustained slow frames drop a tier, sustained fast ones climb back
     const now = performance.now();
-    if (this.lastFrameAt > 0) {
-      this.frameAcc += now - this.lastFrameAt;
+    const delta = this.lastFrameAt > 0 ? now - this.lastFrameAt : 0;
+    // ignore throttled/occluded/hitched frames (tab switches, window occlusion) — they are not render cost
+    if (delta > 0 && delta < 100 && document.visibilityState === "visible") {
+      this.frameAcc += delta;
       this.frameCount++;
       if (this.frameCount >= 120) {
         const avg = this.frameAcc / this.frameCount;
