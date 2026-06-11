@@ -31,5 +31,7 @@ class LocalAdapter implements LeaderboardPort {
   }
 }
 
-/** Plan 4 swaps in SupabaseAdapter when VITE_SUPABASE_URL is present. */
-export const leaderboard: LeaderboardPort = new LocalAdapter();
+import { maybeSupabaseAdapter } from "./supabase";
+
+/** Global Supabase board when env keys are set; otherwise this-device local board. */
+export const leaderboard: LeaderboardPort = maybeSupabaseAdapter() ?? new LocalAdapter();

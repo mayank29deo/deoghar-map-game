@@ -24,6 +24,10 @@ import { createVehState, stepVehicle, type VehState } from "./vehicles/controlle
 import { ChaseCam } from "./vehicles/chaseCam";
 import { useGameStore, type Screen } from "../state/gameStore";
 import { leaderboard } from "../services/leaderboard";
+import { audio } from "./fx/audio";
+import { touch } from "./engine/touch";
+
+const ENGINE_PITCH: Record<string, number> = { scooty: 64, bike: 78, auto: 48, sedan: 56, suv: 44 };
 
 const SHIFT_SECONDS = 300;
 const COMBO_WINDOW = 40;
@@ -108,9 +112,17 @@ export class GameApp {
       () => this.render(),
     );
     window.addEventListener("resize", this.onResize);
+    window.addEventListener("pointerdown", this.initAudio);
+    window.addEventListener("keydown", this.initAudio);
     this.loop.start();
     if (import.meta.env.DEV) (window as unknown as { __app: GameApp }).__app = this;
   }
+
+  private initAudio = () => {
+    audio.ensure();
+    window.removeEventListener("pointerdown", this.initAudio);
+    window.removeEventListener("keydown", this.initAudio);
+  };
 
   // ---------- world ----------
   private buildWorld() {
@@ -207,6 +219,7 @@ export class GameApp {
     this.mission = null;
     this.marker.hide();
     this.slowmo = 0.45;
+    audio.deliver();
     useGameStore.getState().hudSync({ lastDelivery: { amount, at: Date.now() } });
   }
 
@@ -222,6 +235,8 @@ export class GameApp {
       rank: null as number | null,
     };
     store.finishShift(results, this.earnings);
+    audio.setEngine(0, false);
+    audio.jingle();
     const handle = store.handle || "COURIER";
     leaderboard
       .submit({ handle, vehicle: VEHICLES[this.specIdx].key, earnings: this.earnings, deliveries: this.deliveries, bestCombo: this.bestCombo, createdAt: new Date().toISOString() })
@@ -237,7 +252,12 @@ export class GameApp {
   private update(rawDt: number) {
     const dt = this.slowmo > 0 ? rawDt * 0.35 : rawDt;
     if (this.slowmo > 0) this.slowmo -= rawDt;
-    if (this.input.consumePress("KeyH")) this.honkPop = 0.25;
+    if (this.input.consumePress("KeyM")) audio.toggleMute();
+    if (this.input.consumePress("KeyH") || touch.hornQueued) {
+      touch.hornQueued = false;
+      this.honkPop = 0.25;
+      audio.horn(VEHICLES[this.specIdx].key);
+    }
 
     if (this.screen !== "driving") return;
 
@@ -254,18 +274,21 @@ export class GameApp {
     // combo countdown
     if (this.comboLeft > 0) {
       this.comboLeft -= dt;
-      if (this.comboLeft <= 0) { this.comboLeft = 0; this.chain = 0; }
+      if (this.comboLeft <= 0) {
+        this.comboLeft = 0;
+        if (this.chain > 1) audio.comboLost();
+        this.chain = 0;
+      }
     }
 
-    // physics
+    // physics — touch overrides keyboard (auto-accelerate on touch devices)
     const spec = VEHICLES[this.specIdx];
     const cls = this.roadGrid.classAt(this.vehState.x, this.vehState.z);
     const surface = { cls, galiBlocked: cls === 6 && !spec.galiAllowed };
-    let next = stepVehicle(
-      this.vehState,
-      { throttle: this.input.throttle, steer: this.input.steer, handbrake: this.input.handbrake },
-      spec, surface, dt,
-    );
+    const drive = touch.active
+      ? { throttle: touch.brake ? -1 : 1, steer: touch.steer, handbrake: false }
+      : { throttle: this.input.throttle, steer: this.input.steer, handbrake: this.input.handbrake };
+    let next = stepVehicle(this.vehState, drive, spec, surface, dt);
     const res = resolveCircleVsLots(next.x, next.z, spec.radius, this.lots, this.lotIndex);
     if (res.hit) next = { ...next, x: res.x, z: res.z, speed: next.speed * 0.55 };
     this.vehState = next;
@@ -277,6 +300,7 @@ export class GameApp {
         m.phase = "drop";
         m.pickedAt = this.clock;
         this.marker.show(m.offer.drop.x, m.offer.drop.z, "drop");
+        audio.pickup();
       } else if (m.phase === "drop" && near(next.x, next.z, m.offer.drop)) {
         this.deliver();
       }
@@ -327,6 +351,7 @@ export class GameApp {
       for (const w of this.visual.wheels) w.rotation.z -= spin;
       this.chase.update(dt, s, spec);
       this.focus.set(s.x, 0, s.z);
+      audio.setEngine(Math.abs(s.speed) / spec.topSpeed, true, ENGINE_PITCH[spec.key]);
     } else if (this.screen === "garage") {
       const s = this.vehState;
       this.homeAngle += dt * 0.35;

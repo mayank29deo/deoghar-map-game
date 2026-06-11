@@ -1,10 +1,25 @@
 import { useEffect, useState } from "react";
 import { ConfettiBurst, rupees, useCountUp } from "../bits";
 import { useGameStore } from "../../state/gameStore";
+import { audio } from "../../game/fx/audio";
 import ComboRing from "./ComboRing";
 import DeliveryCard from "./DeliveryCard";
 import Minimap from "./Minimap";
 import OfferToasts from "./OfferToast";
+import TouchControls from "./TouchControls";
+
+function MuteButton() {
+  const [muted, setMuted] = useState(audio.muted);
+  return (
+    <button
+      onClick={() => setMuted(audio.toggleMute())}
+      className="glass-dusk pointer-events-auto grid h-10 w-10 place-items-center rounded-full text-lg"
+      title="mute (M)"
+    >
+      {muted ? "🔇" : "🔊"}
+    </button>
+  );
+}
 
 function Timer() {
   const t = useGameStore((s) => s.shift.timeLeft);
@@ -60,11 +75,12 @@ export default function Hud() {
   return (
     <div className="pointer-events-none fixed inset-0 z-20">
       {combo >= 2 && chainAlive && <div className="combo-edge" />}
-      <div className="absolute left-4 top-4"><Timer /></div>
+      <div className="absolute left-4 top-4 flex items-center gap-2"><Timer /><MuteButton /></div>
       <div className="absolute right-4 top-4 flex items-start gap-3">
         <Earnings />
         <ComboRing />
       </div>
+      <TouchControls />
       <div className="pointer-events-auto absolute bottom-4 left-4 w-72 max-w-[42vw]"><OfferToasts /></div>
       <div className="absolute bottom-4 left-1/2 w-[26rem] max-w-[60vw] -translate-x-1/2"><DeliveryCard /></div>
       <div className="absolute bottom-4 right-4"><Minimap /></div>
